@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import 'katex/dist/katex.min.css';
 import { BlockMath } from 'react-katex';
+import jsPDF from 'jspdf';
+import { saveAs } from 'file-saver';
 
 // Conexión a Supabase
 const supabase = createClient(
@@ -18,6 +20,8 @@ function ConsultaEjercicios() {
     contenido: ''
   });
   const [ejercicioEditando, setEjercicioEditando] = useState(null);
+  const [seleccionados, setSeleccionados] = useState([]);
+  const [modoExportacion, setModoExportacion] = useState('pdf'); // 'pdf', 'tex', 'ambos'
 
   const cargarEjercicios = async () => {
     let query = supabase.from('ejercicios').select('*');
@@ -44,10 +48,80 @@ function ConsultaEjercicios() {
     setFiltro((prev) => ({ ...prev, [name]: value }));
   };
 
+  const exportarPDF = () => {
+    const doc = new jsPDF();
+    let y = 10;
+    const seleccion = ejercicios.filter(ej => seleccionados.includes(ej.id));
+
+    seleccion.forEach((ej, index) => {
+      doc.setFontSize(12);
+      doc.text(`${ej.curso} - ${ej.materia}`, 10, y);
+      y += 6;
+      doc.text(`Tema: ${ej.tema} | Contenido: ${ej.contenido}`, 10, y);
+      y += 6;
+      doc.text(`Enunciado: ${ej.enunciado}`, 10, y);
+      y += 6;
+      if (ej.solucion) {
+        doc.text(`Solución: ${ej.solucion}`, 10, y);
+        y += 6;
+      }
+      if (ej.peVAU) {
+        doc.text(`PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}`, 10, y);
+        y += 6;
+      }
+      y += 10;
+      if (y > 270 && index < seleccion.length - 1) {
+        doc.addPage();
+        y = 10;
+      }
+    });
+
+    doc.save('ejercicios.pdf');
+  };
+
+  const exportarLaTeX = () => {
+    const seleccion = ejercicios.filter(ej => seleccionados.includes(ej.id));
+    let contenido = '';
+
+    seleccion.forEach((ej) => {
+      contenido += `\\section*{${ej.curso} - ${ej.materia}}\n`;
+      contenido += `\\textbf{Tema:} ${ej.tema} \\quad \\textbf{Contenido:} ${ej.contenido}\n\n`;
+      contenido += `\\subsection*{Enunciado}\n\
+
+\[${ej.enunciado}\\]
+
+\n\n`;
+      if (ej.solucion) {
+        contenido += `\\subsection*{Solución}\n\
+
+\[${ej.solucion}\\]
+
+\n\n`;
+      }
+      if (ej.peVAU) {
+        contenido += `\\textit{PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}}\n\n`;
+      }
+      contenido += '\\bigskip\n\n';
+    });
+
+    const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
+    saveAs(blob, 'ejercicios.tex');
+  };
+
+  const exportarSeleccionados = () => {
+    if (modoExportacion === 'pdf') exportarPDF();
+    else if (modoExportacion === 'tex') exportarLaTeX();
+    else {
+      exportarPDF();
+      exportarLaTeX();
+    }
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: '900px', margin: 'auto' }}>
       <h2>Consulta de ejercicios</h2>
 
+      {/* Filtros */}
       <div style={{ marginBottom: '1rem' }}>
         <label>Curso:
           <select name="curso" value={filtro.curso} onChange={handleChange}>
@@ -83,6 +157,24 @@ function ConsultaEjercicios() {
         </label>
       </div>
 
+      {/* Opciones de exportación */}
+      <div style={{ marginBottom: '1rem' }}>
+        <label>Formato de exportación:
+          <select value={modoExportacion} onChange={(e) => setModoExportacion(e.target.value)} style={{ marginLeft: '0.5rem' }}>
+            <option value="pdf">PDF</option>
+            <option value="tex">LaTeX (.tex)</option>
+            <option value="ambos">Ambos</option>
+          </select>
+        </label>
+        <button
+          onClick={exportarSeleccionados}
+          disabled={seleccionados.length === 0}
+          style={{ marginLeft: '1rem' }}
+        >
+          Exportar seleccionados
+        </button>
+      </div>
+
       <hr />
 
       {/* Formulario de edición */}
@@ -105,46 +197,4 @@ function ConsultaEjercicios() {
             const { error } = await supabase
               .from('ejercicios')
               .update({
-                enunciado: ejercicioEditando.enunciado,
-                solucion: ejercicioEditando.solucion
-              })
-              .eq('id', ejercicioEditando.id);
-            if (error) alert('Error al actualizar: ' + error.message);
-            else {
-              alert('Ejercicio actualizado');
-              setEjercicioEditando(null);
-              cargarEjercicios();
-            }
-          }}>Guardar cambios</button>
-          <button onClick={() => setEjercicioEditando(null)} style={{ marginLeft: '1rem' }}>Cancelar</button>
-        </div>
-      )}
-
-      {/* Lista de ejercicios */}
-      {ejercicios.length === 0 ? (
-        <p>No se han encontrado ejercicios.</p>
-      ) : (
-        ejercicios.map((ej, i) => (
-          <div key={i} style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc' }}>
-            <strong>{ej.curso} - {ej.materia}</strong><br />
-            <em>{ej.tema} | {ej.contenido}</em><br />
-            {ej.peVAU && (
-              <p>PeVAU: {ej.comunidad_autonoma}, {ej.año}, {ej.convocatoria}</p>
-            )}
-            <h4>Enunciado</h4>
-            <BlockMath math={ej.enunciado} />
-            {ej.solucion && (
-              <>
-                <h4>Solución</h4>
-                <BlockMath math={ej.solucion} />
-              </>
-            )}
-            <button onClick={() => setEjercicioEditando(ej)} style={{ marginTop: '1rem' }}>Editar</button>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-export default ConsultaEjercicios;
+                enunciado: ejercicioEditando
