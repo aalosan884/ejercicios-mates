@@ -5,7 +5,6 @@ import { BlockMath } from 'react-katex';
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
 
-// Conexión a Supabase
 const supabase = createClient(
   process.env.REACT_APP_SUPABASE_URL,
   process.env.REACT_APP_SUPABASE_KEY
@@ -13,35 +12,23 @@ const supabase = createClient(
 
 function ConsultaEjercicios() {
   const [ejercicios, setEjercicios] = useState([]);
-  const [filtro, setFiltro] = useState({
-    curso: '',
-    materia: '',
-    tema: '',
-    contenido: ''
-  });
+  const [filtro, setFiltro] = useState({ curso: '', materia: '', tema: '', contenido: '' });
   const [ejercicioEditando, setEjercicioEditando] = useState(null);
   const [seleccionados, setSeleccionados] = useState([]);
-  const [modoExportacion, setModoExportacion] = useState('pdf'); // 'pdf', 'tex', 'ambos'
+  const [modoExportacion, setModoExportacion] = useState('pdf');
 
   const cargarEjercicios = async () => {
     let query = supabase.from('ejercicios').select('*');
-
     if (filtro.curso) query = query.eq('curso', filtro.curso);
     if (filtro.materia) query = query.eq('materia', filtro.materia);
     if (filtro.tema) query = query.ilike('tema', `%${filtro.tema}%`);
     if (filtro.contenido) query = query.ilike('contenido', `%${filtro.contenido}%`);
-
     const { data, error } = await query;
-    if (error) {
-      alert('Error al cargar ejercicios: ' + error.message);
-    } else {
-      setEjercicios(data);
-    }
+    if (error) alert('Error al cargar ejercicios: ' + error.message);
+    else setEjercicios(data);
   };
 
-  useEffect(() => {
-    cargarEjercicios();
-  }, [filtro]);
+  useEffect(() => { cargarEjercicios(); }, [filtro]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -52,37 +39,22 @@ function ConsultaEjercicios() {
     const doc = new jsPDF();
     let y = 10;
     const seleccion = ejercicios.filter(ej => seleccionados.includes(ej.id));
-
     seleccion.forEach((ej, index) => {
       doc.setFontSize(12);
-      doc.text(`${ej.curso} - ${ej.materia}`, 10, y);
-      y += 6;
-      doc.text(`Tema: ${ej.tema} | Contenido: ${ej.contenido}`, 10, y);
-      y += 6;
-      doc.text(`Enunciado: ${ej.enunciado}`, 10, y);
-      y += 6;
-      if (ej.solucion) {
-        doc.text(`Solución: ${ej.solucion}`, 10, y);
-        y += 6;
-      }
-      if (ej.peVAU) {
-        doc.text(`PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}`, 10, y);
-        y += 6;
-      }
+      doc.text(`${ej.curso} - ${ej.materia}`, 10, y); y += 6;
+      doc.text(`Tema: ${ej.tema} | Contenido: ${ej.contenido}`, 10, y); y += 6;
+      doc.text(`Enunciado: ${ej.enunciado}`, 10, y); y += 6;
+      if (ej.solucion) { doc.text(`Solución: ${ej.solucion}`, 10, y); y += 6; }
+      if (ej.peVAU) { doc.text(`PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}`, 10, y); y += 6; }
       y += 10;
-      if (y > 270 && index < seleccion.length - 1) {
-        doc.addPage();
-        y = 10;
-      }
+      if (y > 270 && index < seleccion.length - 1) { doc.addPage(); y = 10; }
     });
-
     doc.save('ejercicios.pdf');
   };
 
   const exportarLaTeX = () => {
     const seleccion = ejercicios.filter(ej => seleccionados.includes(ej.id));
     let contenido = '';
-
     seleccion.forEach((ej) => {
       contenido += `\\section*{${ej.curso} - ${ej.materia}}\n`;
       contenido += `\\textbf{Tema:} ${ej.tema} \\quad \\textbf{Contenido:} ${ej.contenido}\n\n`;
@@ -91,19 +63,14 @@ function ConsultaEjercicios() {
 \[${ej.enunciado}\\]
 
 \n\n`;
-      if (ej.solucion) {
-        contenido += `\\subsection*{Solución}\n\
+      if (ej.solucion) contenido += `\\subsection*{Solución}\n\
 
 \[${ej.solucion}\\]
 
 \n\n`;
-      }
-      if (ej.peVAU) {
-        contenido += `\\textit{PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}}\n\n`;
-      }
+      if (ej.peVAU) contenido += `\\textit{PeVAU: ${ej.comunidad_autonoma}, ${ej.año}, ${ej.convocatoria}}\n\n`;
       contenido += '\\bigskip\n\n';
     });
-
     const blob = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
     saveAs(blob, 'ejercicios.tex');
   };
@@ -111,10 +78,7 @@ function ConsultaEjercicios() {
   const exportarSeleccionados = () => {
     if (modoExportacion === 'pdf') exportarPDF();
     else if (modoExportacion === 'tex') exportarLaTeX();
-    else {
-      exportarPDF();
-      exportarLaTeX();
-    }
+    else { exportarPDF(); exportarLaTeX(); }
   };
 
   return (
@@ -134,7 +98,6 @@ function ConsultaEjercicios() {
             <option value="2º Bachillerato">2º Bachillerato</option>
           </select>
         </label>
-
         <label style={{ marginLeft: '1rem' }}>Materia:
           <select name="materia" value={filtro.materia} onChange={handleChange}>
             <option value="">Todas</option>
@@ -147,17 +110,15 @@ function ConsultaEjercicios() {
             <option value="Matemáticas 2">Matemáticas 2</option>
           </select>
         </label>
-
         <label style={{ marginLeft: '1rem' }}>Tema:
           <input name="tema" value={filtro.tema} onChange={handleChange} />
         </label>
-
         <label style={{ marginLeft: '1rem' }}>Contenido:
           <input name="contenido" value={filtro.contenido} onChange={handleChange} />
         </label>
       </div>
 
-      {/* Opciones de exportación */}
+      {/* Exportación */}
       <div style={{ marginBottom: '1rem' }}>
         <label>Formato de exportación:
           <select value={modoExportacion} onChange={(e) => setModoExportacion(e.target.value)} style={{ marginLeft: '0.5rem' }}>
@@ -177,7 +138,7 @@ function ConsultaEjercicios() {
 
       <hr />
 
-      {/* Formulario de edición */}
+      {/* Edición */}
       {ejercicioEditando && (
         <div style={{ marginBottom: '2rem', padding: '1rem', border: '2px dashed #999' }}>
           <h4>Editando ejercicio</h4>
@@ -197,4 +158,64 @@ function ConsultaEjercicios() {
             const { error } = await supabase
               .from('ejercicios')
               .update({
-                enunciado: ejercicioEditando
+                enunciado: ejercicioEditando.enunciado,
+                solucion: ejercicioEditando.solucion
+              })
+              .eq('id', ejercicioEditando.id);
+            if (error) alert('Error al actualizar: ' + error.message);
+            else {
+              alert('Ejercicio actualizado');
+              setEjercicioEditando(null);
+              cargarEjercicios();
+            }
+          }}>
+            Guardar cambios
+          </button>
+          <button onClick={() => setEjercicioEditando(null)} style={{ marginLeft: '1rem' }}>
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {/* Lista de ejercicios */}
+      {ejercicios.length === 0 ? (
+        <p>No se han encontrado ejercicios.</p>
+       ) : (
+        ejercicios.map((ej) => (
+          <div key={ej.id} style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #ccc' }}>
+            <input
+              type="checkbox"
+              checked={seleccionados.includes(ej.id)}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSeleccionados([...seleccionados, ej.id]);
+                } else {
+                  setSeleccionados(seleccionados.filter(id => id !== ej.id));
+                }
+              }}
+              style={{ marginRight: '0.5rem' }}
+            />
+            <strong>{ej.curso} - {ej.materia}</strong><br />
+            <em>{ej.tema} | {ej.contenido}</em><br />
+            {ej.peVAU && (
+              <p>PeVAU: {ej.comunidad_autonoma}, {ej.año}, {ej.convocatoria}</p>
+            )}
+            <h4>Enunciado</h4>
+            <BlockMath math={ej.enunciado} />
+            {ej.solucion && (
+              <>
+                <h4>Solución</h4>
+                <BlockMath math={ej.solucion} />
+              </>
+            )}
+            <button onClick={() => setEjercicioEditando(ej)} style={{ marginTop: '1rem' }}>
+              Editar
+            </button>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+export default ConsultaEjercicios;
